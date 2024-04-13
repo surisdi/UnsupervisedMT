@@ -144,38 +144,38 @@ wget -c http://www.statmt.org/wmt14/training-monolingual-news-crawl/news.2010.fr
 # wget -c http://data.statmt.org/wmt17/translation-task/news.2016.fr.shuffled.gz
 # wget -c http://data.statmt.org/wmt17/translation-task/news.2017.fr.shuffled.gz
 
-# decompress monolingual data
-for FILENAME in news*gz; do
-  OUTPUT="${FILENAME::-3}"
-  if [ ! -f "$OUTPUT" ]; then
-    echo "Decompressing $FILENAME..."
-    gunzip -k $FILENAME
-  else
-    echo "$OUTPUT already decompressed."
-  fi
-done
-
-# concatenate monolingual data files
-if ! [[ -f "$SRC_RAW" && -f "$TGT_RAW" ]]; then
-  echo "Concatenating monolingual data..."
-  cat $(ls news*en* | grep -v gz) | head -n $N_MONO > $SRC_RAW
-  cat $(ls news*fr* | grep -v gz) | head -n $N_MONO > $TGT_RAW
-fi
-echo "EN monolingual data concatenated in: $SRC_RAW"
-echo "FR monolingual data concatenated in: $TGT_RAW"
-
-# check number of lines
-if ! [[ "$(wc -l < $SRC_RAW)" -eq "$N_MONO" ]]; then echo "ERROR: Number of lines doesn't match! Be sure you have $N_MONO sentences in your EN monolingual data."; exit; fi
-if ! [[ "$(wc -l < $TGT_RAW)" -eq "$N_MONO" ]]; then echo "ERROR: Number of lines doesn't match! Be sure you have $N_MONO sentences in your FR monolingual data."; exit; fi
-
-# tokenize data
-if ! [[ -f "$SRC_TOK" && -f "$TGT_TOK" ]]; then
-  echo "Tokenize monolingual data..."
-  cat $SRC_RAW | $NORM_PUNC -l en | $TOKENIZER -l en -no-escape -threads $N_THREADS > $SRC_TOK
-  cat $TGT_RAW | $NORM_PUNC -l fr | $TOKENIZER -l fr -no-escape -threads $N_THREADS > $TGT_TOK
-fi
-echo "EN monolingual data tokenized in: $SRC_TOK"
-echo "FR monolingual data tokenized in: $TGT_TOK"
+## decompress monolingual data
+#for FILENAME in news*gz; do
+#  OUTPUT="${FILENAME::-3}"
+#  if [ ! -f "$OUTPUT" ]; then
+#    echo "Decompressing $FILENAME..."
+#    gunzip -k $FILENAME
+#  else
+#    echo "$OUTPUT already decompressed."
+#  fi
+#done
+#
+## concatenate monolingual data files
+#if ! [[ -f "$SRC_RAW" && -f "$TGT_RAW" ]]; then
+#  echo "Concatenating monolingual data..."
+#  cat $(ls news*en* | grep -v gz) | head -n $N_MONO > $SRC_RAW
+#  cat $(ls news*fr* | grep -v gz) | head -n $N_MONO > $TGT_RAW
+#fi
+#echo "EN monolingual data concatenated in: $SRC_RAW"
+#echo "FR monolingual data concatenated in: $TGT_RAW"
+#
+## check number of lines
+#if ! [[ "$(wc -l < $SRC_RAW)" -eq "$N_MONO" ]]; then echo "ERROR: Number of lines doesn't match! Be sure you have $N_MONO sentences in your EN monolingual data."; exit; fi
+#if ! [[ "$(wc -l < $TGT_RAW)" -eq "$N_MONO" ]]; then echo "ERROR: Number of lines doesn't match! Be sure you have $N_MONO sentences in your FR monolingual data."; exit; fi
+#
+## tokenize data
+#if ! [[ -f "$SRC_TOK" && -f "$TGT_TOK" ]]; then
+#  echo "Tokenize monolingual data..."
+#  cat $SRC_RAW | $NORM_PUNC -l en | $TOKENIZER -l en -no-escape -threads $N_THREADS > $SRC_TOK
+#  cat $TGT_RAW | $NORM_PUNC -l fr | $TOKENIZER -l fr -no-escape -threads $N_THREADS > $TGT_TOK
+#fi
+#echo "EN monolingual data tokenized in: $SRC_TOK"
+#echo "FR monolingual data tokenized in: $TGT_TOK"
 
 # learn BPE codes
 if [ ! -f "$BPE_CODES" ]; then

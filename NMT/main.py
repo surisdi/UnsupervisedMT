@@ -238,7 +238,7 @@ def main(params):
 
     # initialize experiment / load data / build model
     logger = initialize_exp(params)
-    data = load_data(params)
+    data = load_data(params, mono_only=True)
     encoder, decoder, discriminator, lm = build_mt_model(params, data)
 
     # initialize trainer / reload checkpoint / initialize evaluator

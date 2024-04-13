@@ -11,8 +11,10 @@ import torch
 
 from ..utils import create_word_masks
 from .dataset import MonolingualDataset, ParallelDataset
-from .dictionary import EOS_WORD, PAD_WORD, UNK_WORD, SPECIAL_WORD, SPECIAL_WORDS
-
+from .dictionary import EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD, BOS_WORD
+import numpy as np
+from NMT.src.data.dictionary import Dictionary
+from tqdm import tqdm
 
 logger = getLogger()
 
@@ -27,10 +29,51 @@ def load_binarized(path, params):
     if path in loaded_data:
         logger.info("Reloading data loaded from %s ..." % path)
         return loaded_data[path]
-    assert os.path.isfile(path), path
-    logger.info("Loading data from %s ..." % path)
-    data = torch.load(path)
-    data['positions'] = data['positions'].numpy()
+
+    # assert os.path.isfile(path), path
+    # logger.info("Loading data from %s ..." % path)
+    # data = torch.load(path)
+    # data['positions'] = data['positions'].numpy()
+
+    dataset_info_path = '/proj/vondrick/shared/globetrotter/dataset_info'
+    config_name = 'all-lang_test-zh-en'
+    vocab_size = 30000
+    from tokenizers import ByteLevelBPETokenizer
+    vocab_file = os.path.join(dataset_info_path, f'tokenizer_{config_name}_{vocab_size}-vocab.json')
+    merges_file = os.path.join(dataset_info_path, f'tokenizer_{config_name}_{vocab_size}-merges.txt')
+    tokenizer = ByteLevelBPETokenizer(vocab_file=vocab_file, merges_file=merges_file)
+    # tokenizer.add_special_tokens(special_tokens)
+
+    # Now retokenize all the sentences
+    language = path.split('.')[-1]
+    path_text = f'/proj/vondrick/shared/globetrotter/data_all/{language}.txt'
+
+    sentences = []
+    positions = []
+    last_position = 0
+
+    with open(path_text, 'r') as f:
+        for line in tqdm(f):
+            if line == '\n':
+                continue
+            line = line.replace('\n', '')
+            tokenized_sentence = tokenizer.encode(line)
+            sentences += tokenized_sentence.ids + [-1, ]
+            positions.append(np.array([last_position, last_position + len(tokenized_sentence)]))
+            last_position = last_position + len(tokenized_sentence) + 1
+
+    positions = np.stack(positions)
+    sentences = torch.tensor(np.array(sentences))
+
+    data = {}
+    word2id = tokenizer.get_vocab()
+    id2word = {v: k for k, v in tokenizer.get_vocab().items()}
+    data['dico'] = Dictionary(id2word, word2id)
+    data['tokenizer'] = tokenizer
+    data['sentences'] = sentences
+    data['positions'] = positions
+    data['unk_words'] = {}
+
     logger.info("%i words (%i unique) in %i sentences. %i unknown words (%i unique)." % (
         len(data['sentences']) - len(data['positions']),
         len(data['dico']), len(data['positions']),
@@ -101,8 +144,8 @@ def set_parameters(params, dico):
     eos_index = dico.index(EOS_WORD)
     pad_index = dico.index(PAD_WORD)
     unk_index = dico.index(UNK_WORD)
-    blank_index = dico.index(SPECIAL_WORD % 0)
-    bos_index = [dico.index(SPECIAL_WORD % (i + 1)) for i in range(params.n_langs)]
+    blank_index = dico.index(MASK_WORD)
+    bos_index = [dico.word2id[BOS_WORD] for i in range(params.n_langs)]  # [dico.index(SPECIAL_WORD % (i + 1)) for i in range(params.n_langs)]
     if hasattr(params, 'eos_index'):
         assert params.eos_index == eos_index
         assert params.pad_index == pad_index
@@ -129,8 +172,8 @@ def check_dictionaries(params, data):
     dico_0 = data['dico'][params.langs[0]]
 
     # check dictionaries indexes
-    _SPECIAL_WORDS = ([EOS_WORD, PAD_WORD, UNK_WORD] +
-                      [SPECIAL_WORD % i for i in range(SPECIAL_WORDS)])
+    # _SPECIAL_WORDS = ([EOS_WORD, PAD_WORD, UNK_WORD] + [SPECIAL_WORD % i for i in range(SPECIAL_WORDS)])
+    _SPECIAL_WORDS = ([EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD]) # + [SPECIAL_WORD % i for i in range(SPECIAL_WORDS)])
     for i in range(1, params.n_langs):
         dico_i = data['dico'][params.langs[i]]
         assert all(dico_0.index(x) == dico_i.index(x) for x in _SPECIAL_WORDS)
@@ -257,7 +300,7 @@ def load_mono_data(params, data):
     """
     Load monolingual data.
     """
-    assert not (len(params.mono_dataset) == 0) ^ (params.n_mono == 0)
+    # assert not (len(params.mono_dataset) == 0) ^ (params.n_mono == 0)
     if len(params.mono_dataset) == 0:
         return
 
@@ -318,14 +361,14 @@ def check_all_data_params(params):
 
     # check monolingual datasets
     params.mono_dataset = {k: v for k, v in [x.split(':') for x in params.mono_dataset.split(';') if len(x) > 0]}
-    assert not (len(params.mono_dataset) == 0) ^ (params.n_mono == 0)
+    # assert not (len(params.mono_dataset) == 0) ^ (params.n_mono == 0)  # We do not load datasets
     if len(params.mono_dataset) > 0:
         assert type(params.mono_dataset) is dict
         assert all(lang in params.langs for lang in params.mono_dataset.keys())
         assert all(len(v.split(',')) == 3 for v in params.mono_dataset.values())
         params.mono_dataset = {k: tuple(v.split(',')) for k, v in params.mono_dataset.items()}
-        assert all(all(((i > 0 and path == '') or os.path.isfile(path)) for i, path in enumerate(paths))
-                   for paths in params.mono_dataset.values())
+        # assert all(all(((i > 0 and path == '') or os.path.isfile(path)) for i, path in enumerate(paths))
+        #            for paths in params.mono_dataset.values())
 
     # check parallel datasets
     params.para_dataset = {k: v for k, v in [x.split(':') for x in params.para_dataset.split(';') if len(x) > 0]}
@@ -379,7 +422,7 @@ def check_all_data_params(params):
         assert params.n_mono != 0
         assert type(params.mono_directions) is list
         assert all(lang in params.langs for lang in params.mono_directions)
-        assert all(lang in params.mono_dataset for lang in params.mono_directions)
+        # assert all(lang in params.mono_dataset for lang in params.mono_directions)
 
     # check directions with pivot
     params.pivo_directions = [x.split('-') for x in params.pivo_directions.split(',') if len(x) > 0]
@@ -399,14 +442,14 @@ def check_all_data_params(params):
                 assert k in params.para_dataset
                 assert params.para_dataset[k][0] != ''
             # 2-lang back-translation - parallel data
-            elif lang1 == lang3 != lang2:
-                assert lang1 in params.mono_dataset
+            # elif lang1 == lang3 != lang2:
+            #     assert lang1 in params.mono_dataset
             # 3-lang back-translation - parallel data
-            else:
-                assert lang1 != lang2 and lang2 != lang3 and lang1 != lang3
-                k = (lang1, lang3) if lang1 < lang3 else (lang3, lang1)
-                assert k in params.para_dataset
-                assert params.para_dataset[k][0] != ''
+            # else:
+            #     assert lang1 != lang2 and lang2 != lang3 and lang1 != lang3
+            #     k = (lang1, lang3) if lang1 < lang3 else (lang3, lang1)
+            #     assert k in params.para_dataset
+            #     assert params.para_dataset[k][0] != ''
         assert params.otf_backprop_temperature == -1 or params.otf_backprop_temperature > 0
         assert params.otf_update_enc or params.otf_update_dec
     else:

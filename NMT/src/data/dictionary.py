@@ -6,6 +6,7 @@
 #
 
 import os
+import numpy as np
 import torch
 from logging import getLogger
 
@@ -13,13 +14,21 @@ from logging import getLogger
 logger = getLogger()
 
 
-BOS_WORD = '<s>'
-EOS_WORD = '</s>'
-PAD_WORD = '<pad>'
-UNK_WORD = '<unk>'
+# BOS_WORD = '<s>'
+# EOS_WORD = '</s>'
+# PAD_WORD = '<pad>'
+# UNK_WORD = '<unk>'
+#
+# SPECIAL_WORD = '<special%i>'
+# SPECIAL_WORDS = 10
 
-SPECIAL_WORD = '<special%i>'
-SPECIAL_WORDS = 10
+
+# Changed so that it is the same as what we load. Note that the meaning comes from the variable name, not the string
+BOS_WORD = '<pad>'
+EOS_WORD = '<txt>'
+PAD_WORD = '<img>'
+UNK_WORD = '<mask>'
+MASK_WORD = '<sep>'
 
 
 class Dictionary(object):
@@ -68,7 +77,7 @@ class Dictionary(object):
         assert self.eos_index == 1
         assert self.pad_index == 2
         assert self.unk_index == 3
-        assert all(self.id2word[4 + i] == SPECIAL_WORD % i for i in range(SPECIAL_WORDS))
+        # assert all(self.id2word[4 + i] == SPECIAL_WORD % i for i in range(SPECIAL_WORDS))
         assert len(self.id2word) == len(self.word2id)
         for i in range(len(self.id2word)):
             assert self.word2id[self.id2word[i]] == i
@@ -99,8 +108,8 @@ class Dictionary(object):
         skipped = 0
         assert os.path.isfile(vocab_path), vocab_path
         word2id = {BOS_WORD: 0, EOS_WORD: 1, PAD_WORD: 2, UNK_WORD: 3}
-        for i in range(SPECIAL_WORDS):
-            word2id[SPECIAL_WORD % i] = 4 + i
+        # for i in range(SPECIAL_WORDS):
+        #     word2id[SPECIAL_WORD % i] = 4 + i
         f = open(vocab_path, 'r', encoding='utf-8')
         for i, line in enumerate(f):
             if '\u2028' in line:
@@ -109,7 +118,8 @@ class Dictionary(object):
             line = line.rstrip().split()
             assert len(line) == 2, (i, line)
             assert line[0] not in word2id and line[1].isdigit(), (i, line)
-            word2id[line[0]] = 4 + SPECIAL_WORDS + i - skipped  # shift because of extra words
+            # word2id[line[0]] = 4 + SPECIAL_WORDS + i - skipped  # shift because of extra words
+            word2id[line[0]] = 5 + i - skipped  # shift because of extra words
         f.close()
         id2word = {v: k for k, v in word2id.items()}
         dico = Dictionary(id2word, word2id)
@@ -148,7 +158,8 @@ class Dictionary(object):
             indexed = []
             for w in s:
                 word_id = dico.index(w, no_unk=False)
-                if word_id < 4 + SPECIAL_WORDS and word_id != dico.unk_index:
+                # if word_id < 4 + SPECIAL_WORDS and word_id != dico.unk_index:
+                if word_id < 5 and word_id != dico.unk_index:
                     logger.warning('Found unexpected special word "%s" (%i)!!' % (w, word_id))
                     continue
                 indexed.append(word_id)
